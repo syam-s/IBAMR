@@ -269,6 +269,16 @@ IBFESurfaceMethod::registerLagSurfacePressureFunction(const LagSurfacePressureFc
     return;
 } // registerLagSurfacePressureFunction
 
+void
+IBFESurfaceMethod::registerL2LagrangeFamilyPart(unsigned int part)
+{
+    TBOX_ASSERT(part < d_num_parts);
+    if (d_is_L2_Lagrange_family_part[part]) return;
+    d_has_L2_Lagrange_family_parts = true;
+    d_is_L2_Lagrange_family_part[part] = true;
+    return;
+} // registerL2LagrangeElemPart
+
 IBFESurfaceMethod::LagSurfacePressureFcnData
 IBFESurfaceMethod::getLagSurfacePressureFunction(unsigned int part) const
 {
@@ -2172,7 +2182,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                 auto& P_jump_system = equation_systems.add_system<ExplicitSystem>(PRESSURE_JUMP_SYSTEM_NAME);
                 auto& P_in_system = equation_systems.add_system<ExplicitSystem>(PRESSURE_IN_SYSTEM_NAME);
                 auto& P_out_system = equation_systems.add_system<ExplicitSystem>(PRESSURE_OUT_SYSTEM_NAME);
-                if (d_use_l2_lagrange_family)
+                if (d_is_L2_Lagrange_family_part[part])
                 {
                     P_jump_system.add_variable("P_jump_", d_fe_order[part], L2_LAGRANGE);
                     P_in_system.add_variable("P_in_", d_fe_order[part], L2_LAGRANGE);
@@ -2197,7 +2207,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                         const std::string system_name = "DU_jump_" + std::to_string(d) + "_" + std::to_string(i);
                         // TODO: The value of the FEFamily should just be read in from the input file directly instead
                         // of using a boolean.
-                        if (d_use_l2_lagrange_family)
+                        if (d_is_L2_Lagrange_family_part[part])
                         {
                             DU_jump_system[d]->add_variable(system_name, d_fe_order[part], L2_LAGRANGE);
                         }
@@ -2214,7 +2224,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                     const std::string system_name = "WSS_in_" + std::to_string(d);
                     // TODO: The value of the FEFamily should just be read in from the input file directly instead of
                     // using a boolean.
-                    if (d_use_l2_lagrange_family)
+                    if (d_is_L2_Lagrange_family_part[part])
                     {
                         WSS_in_system.add_variable(system_name, d_fe_order[part], L2_LAGRANGE);
                     }
@@ -2230,7 +2240,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                     const std::string system_name = "WSS_out_" + std::to_string(d);
                     // TODO: The value of the FEFamily should just be read in from the input file directly instead of
                     // using a boolean.
-                    if (d_use_l2_lagrange_family)
+                    if (d_is_L2_Lagrange_family_part[part])
                     {
                         WSS_out_system.add_variable(system_name, d_fe_order[part], L2_LAGRANGE);
                     }
@@ -2249,7 +2259,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                     std::string system_name = "TAU_IN_" + std::to_string(d);
                     // TODO: The value of the FEFamily should just be read in from the input file directly instead of
                     // using a boolean.
-                    if (d_use_l2_lagrange_family)
+                    if (d_is_L2_Lagrange_family_part[part])
                     {
                         TAU_in_system.add_variable(system_name, d_fe_order[part], L2_LAGRANGE);
                     }
@@ -2265,7 +2275,7 @@ IBFESurfaceMethod::initializeFEEquationSystems()
                     std::string system_name = "TAU_OUT_" + std::to_string(d);
                     // TODO: The value of the FEFamily should just be read in from the input file directly instead of
                     // using a boolean.
-                    if (d_use_l2_lagrange_family)
+                    if (d_is_L2_Lagrange_family_part[part])
                     {
                         TAU_out_system.add_variable(system_name, d_fe_order[part], L2_LAGRANGE);
                     }
@@ -2959,7 +2969,6 @@ IBFESurfaceMethod::putToDatabase(Pointer<Database> db)
     db->putInteger("d_num_parts", d_num_parts);
     db->putIntegerArray("d_ghosts", d_ghosts, NDIM);
     db->putBool("d_use_velocity_jump_conditions", d_use_velocity_jump_conditions);
-    db->putBool("d_use_l2_lagrange_family", d_use_l2_lagrange_family);
     db->putBool("d_use_pressure_jump_conditions", d_use_pressure_jump_conditions);
     db->putBool("d_compute_fluid_traction", d_compute_fluid_traction);
     db->putBool("d_traction_interior_side", d_traction_interior_side);
@@ -4708,6 +4717,8 @@ IBFESurfaceMethod::commonConstructor(const std::string& object_name,
     d_lag_surface_force_fcn_data.resize(d_num_parts);
     d_lag_surface_force_integral.resize(d_num_parts);
     d_direct_forcing_kinematics_data.resize(d_num_parts, Pointer<IBFEDirectForcingKinematics>(nullptr));
+    
+    d_is_L2_Lagrange_family_part.resize(d_num_parts, false);
 
     // Determine whether we should use first-order or second-order shape
     // functions for each part of the structure.
@@ -4895,8 +4906,6 @@ IBFESurfaceMethod::getFromInput(Pointer<Database> db, bool /*is_from_restart*/)
         if (db->isBool("normalize_pressure_jump")) d_normalize_pressure_jump = db->getBool("normalize_pressure_jump");
     }
 
-    if (db->isBool("use_l2_lagrange_family")) d_use_l2_lagrange_family = db->getBool("use_l2_lagrange_family");
-
     if (db->isBool("use_velocity_jump_conditions"))
     {
         d_use_velocity_jump_conditions = db->getBool("use_velocity_jump_conditions");
@@ -4993,7 +5002,6 @@ IBFESurfaceMethod::getFromRestart()
         TBOX_ERROR(d_object_name << ":  Restart file version different than class version." << std::endl);
     }
     db->getIntegerArray("d_ghosts", d_ghosts, NDIM);
-    d_use_l2_lagrange_family = db->getBool("d_use_l2_lagrange_family");
     d_use_pressure_jump_conditions = db->getBool("d_use_pressure_jump_conditions");
     d_use_velocity_jump_conditions = db->getBool("d_use_velocity_jump_conditions");
     d_compute_fluid_traction = db->getBool("d_compute_fluid_traction");

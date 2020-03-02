@@ -277,6 +277,11 @@ public:
         std::vector<IBTK::SystemData> system_data;
         void* ctx;
     };
+    
+     /*!
+     * Indicate that a part should use discontinuous L2 Lagrange elements
+     */
+    void registerL2LagrangeFamilyPart(unsigned int part = 0);
 
     /*!
      * Register the (optional) function to compute surface force distributions
@@ -826,7 +831,6 @@ protected:
     std::vector<IBTK::FEDataManager::SpreadSpec> d_spread_spec;
     bool d_use_pressure_jump_conditions = false;
     bool d_use_velocity_jump_conditions = false;
-    bool d_use_l2_lagrange_family = false;
     bool d_compute_fluid_traction = false;
     bool d_traction_interior_side = false;
     bool d_perturb_fe_mesh_nodes = true;
@@ -842,6 +846,12 @@ protected:
     double d_p_calc_width = 0.0;
     double d_epsilon = 0.0;
     double d_traction_activation_time = 0.0;
+    
+     /*!
+     * Data related to handling discontinuous L2 Lagrange elements.
+     */
+    bool d_has_L2_Lagrange_family_parts = false;
+    std::vector<bool> d_is_L2_Lagrange_family_part;
 
     /*!
      * Functions used to compute the initial coordinates of the Lagrangian mesh.
